@@ -1,0 +1,17 @@
+ $fit_width("Flags", 6) | $fit_width("Message", 81) | $fit_width("Project", 20) | $fit_width("Topic", 20) | $fit_width("User Name", 15) | URL
+${"-" * 8}|${"-" * 83}|${"-" * 22}|${"-" * 22}|${"-" * 17}|${"-" * 36}
+#for $change in $changes
+#set $flags = ""
+#if $change.change_since_last_comment
+#if $change.last_checked_patch_set == -1
+#set $flags = $flags + "N"
+#else
+#set $flags = $flags + "U"
+#end if
+#else
+#set $flags = $flags + "C"
+#end if
+ $fit_width($flags, 6) | $fit_width($change.subject, 81) | $fit_width($change.project, 20) | $fit_width($change.topic, 20) | $fit_width($change.owner.username, 15) | $change.url
+#end for
+
+-- Flags: [N]ew, [U]pdated Patch Set, New [C]omments

@@ -1,0 +1,7 @@
+{
+	"username": "ficoos",
+	"host": "review.openstack.org",
+	"port": 29418,
+	"private_key": "~/.ssh/id_rsa",
+	"query": "is:reviewer AND is:open"
+}
