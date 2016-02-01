@@ -1,7 +1,6 @@
 #!/bin/env python
 
 import sys
-sys.path.append('python-gerrit')
 import os
 import re
 import json
@@ -19,8 +18,8 @@ from gerrit import (
 
 conf = json.load(open(os.path.expanduser("~/.bruvrc")))
 
-DEFAULT_SSH_KEY = os.path.expanduser(conf.get("private_key", "~/.ssh/id_rsa"))
-pkey = paramiko.RSAKey(filename=DEFAULT_SSH_KEY)
+pkey_path = os.path.expanduser(conf.get("private_key", "~/.ssh/id_rsa"))
+pkey = paramiko.RSAKey(filename=pkey_path)
 username = conf.get("username", "john")
 host = conf.get("host", "review.openstack.org")
 port = conf.get("port", 29418)
