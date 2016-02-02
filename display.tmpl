@@ -1,6 +1,14 @@
- $fit_width("Flags", 6) | $fit_width("Message", 81) | $fit_width("Project", 20) | $fit_width("Topic", 20) | $fit_width("User Name", 15) | URL
-${"-" * 8}|${"-" * 83}|${"-" * 22}|${"-" * 22}|${"-" * 17}|${"-" * 36}
+#set $TOPIC_COL_WIDTH = 22
+#set $PROJECT_COL_WIDTH = 20
+#set $MESSAGE_COL_WIDTH = 81
+#set $FLAGS_COL_WIDTH = 6
+#set $USER_COL_WIDTH = 15
+#set $URL_COL_WIDTH = 34
+ $fit_width("Flags", $FLAGS_COL_WIDTH) | $fit_width("Message", $MESSAGE_COL_WIDTH) | $fit_width("Project", $PROJECT_COL_WIDTH) | $fit_width("Topic", $TOPIC_COL_WIDTH) | $fit_width("User Name", $USER_COL_WIDTH) | URL
+-${"-" * $FLAGS_COL_WIDTH}-|-${"-" * $MESSAGE_COL_WIDTH}-|-${"-" * $PROJECT_COL_WIDTH}-|-${"-" * $TOPIC_COL_WIDTH}-|-${"-" * $USER_COL_WIDTH}-|-${"-" * $URL_COL_WIDTH}-
+#set $count = 0
 #for $change in $changes
+#set $count = $count + 1
 #set $flags = ""
 #if $change.change_since_last_comment
 #if $change.last_checked_patch_set == -1
@@ -11,7 +19,9 @@ ${"-" * 8}|${"-" * 83}|${"-" * 22}|${"-" * 22}|${"-" * 17}|${"-" * 36}
 #else
 #set $flags = $flags + "C"
 #end if
- $fit_width($flags, 6) | $fit_width($change.subject, 81) | $fit_width($change.project, 20) | $fit_width($change.topic, 20) | $fit_width($change.owner.username, 15) | $change.url
+ $fit_width($flags, $FLAGS_COL_WIDTH) | $fit_width($change.subject, $MESSAGE_COL_WIDTH) | $fit_width($change.project, $PROJECT_COL_WIDTH) | $fit_width($change.topic, $TOPIC_COL_WIDTH) | $fit_width($change.owner.username, $USER_COL_WIDTH) | $change.url
 #end for
+-${"-" * $FLAGS_COL_WIDTH}---${"-" * $MESSAGE_COL_WIDTH}---${"-" * $PROJECT_COL_WIDTH}---${"-" * $TOPIC_COL_WIDTH}---${"-" * $USER_COL_WIDTH}---${"-" * $URL_COL_WIDTH}-
+$count items left to review
 
 -- Flags: [N]ew, [U]pdated Patch Set, New [C]omments
