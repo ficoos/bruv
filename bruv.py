@@ -57,6 +57,7 @@ def has_changed_since_comment(change):
 
 def add_last_checked_information(change):
     last_comment = find_last_comment_by(change["comments"], username)
+    change["diff_url"] = change["url"]
     if last_comment is not None:
         last_patch_set = PATCH_SET_INFO_RE.findall(last_comment["message"])
         last_patch_set = int(last_patch_set[0])
@@ -64,6 +65,10 @@ def add_last_checked_information(change):
         current_path_set = int(change["currentPatchSet"]["number"])
         change["change_since_last_comment"] = (
             current_path_set != last_patch_set)
+        if last_patch_set != current_path_set:
+            change["diff_url"] = "http://%s/#/c/%s/%d..%d//COMMIT_MSG" % (
+                host, change["number"], last_patch_set, current_path_set
+            )
     else:
         change["change_since_last_comment"] = True
         change["last_checked_patch_set"] = -1
