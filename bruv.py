@@ -19,7 +19,6 @@ from gerrit import (
 conf = json.load(open(os.path.expanduser("~/.bruvrc")))
 
 pkey_path = os.path.expanduser(conf.get("private_key", "~/.ssh/id_rsa"))
-pkey = paramiko.RSAKey(filename=pkey_path)
 username = conf.get("username", "john")
 host = conf.get("host", "review.openstack.org")
 port = conf.get("port", 29418)
@@ -27,6 +26,13 @@ query = conf.get("query", "")
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
 
+def get_private_key():
+    agent = paramiko.agent.Agent()
+    keys_by_path = {key.get_name(): key for key in agent.get_keys()}
+    if pkey_path in keys_by_path:
+        return keys_by_path[pkey_path]
+    pkey = paramiko.RSAKey(filename=pkey_path)
+    return pkey
 
 def is_me(user_dict):
     return user_dict['username'] == username
@@ -82,6 +88,7 @@ def fit_width(s, n):
     else:
         return s + " " * (n - len(s))
 
+pkey = get_private_key()
 g = Gerrit(host, port, username, pkey)
 changes = g.query(query,
                   options=[QueryOptions.Comments,
