@@ -4,6 +4,9 @@ import sys
 import os
 import re
 import json
+import fcntl
+import termios
+import struct
 
 from itertools import imap, ifilter
 
@@ -16,6 +19,36 @@ from gerrit import (
     Gerrit,
 )
 
+
+def get_terminal_size():
+    env = os.environ
+
+    def ioctl_GWINSZ(fd):
+        try:
+            cr = struct.unpack(
+                'hh',
+                fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234')
+            )
+        except:
+            return
+
+        return cr
+
+    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
+    if not cr:
+        try:
+            fd = os.open(os.ctermid(), os.O_RDONLY)
+            cr = ioctl_GWINSZ(fd)
+            os.close(fd)
+        except:
+            pass
+
+    if not cr:
+        cr = (env.get('LINES', 25), env.get('COLUMNS', 80))
+
+    return int(cr[1]), int(cr[0])
+
+
 conf = json.load(open(os.path.expanduser("~/.bruvrc")))
 
 pkey_path = os.path.expanduser(conf.get("private_key", "~/.ssh/id_rsa"))
@@ -23,8 +56,10 @@ username = conf.get("username", "john")
 host = conf.get("host", "review.openstack.org")
 port = conf.get("port", 29418)
 query = conf.get("query", "")
+template_path = conf.get("template_file", "display.tmpl")
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
+
 
 def get_private_key():
     agent = paramiko.agent.Agent()
@@ -33,6 +68,7 @@ def get_private_key():
         return keys_by_path[pkey_path]
     pkey = paramiko.RSAKey(filename=pkey_path)
     return pkey
+
 
 def is_me(user_dict):
     return user_dict['username'] == username
@@ -97,7 +133,9 @@ changes = imap(remove_jenkins_comments, changes)
 changes = imap(add_last_checked_information, changes)
 changes = ifilter(not_mine, changes)
 changes = ifilter(has_changed_since_comment, changes)
-template_file = str(conf.get("template_file", "display.tmpl"))
-sys.stdout.write(str(Template(file=template_file,
-                              searchList=[{"changes": changes,
-                                           "fit_width": fit_width}])))
+sys.stdout.write(str(Template(
+    file=template_path,
+    searchList=[{"changes": changes,
+                 "fit_width": fit_width,
+                 "terminal_size": get_terminal_size(),
+                 }])))
