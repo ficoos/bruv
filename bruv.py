@@ -97,6 +97,7 @@ changes = imap(remove_jenkins_comments, changes)
 changes = imap(add_last_checked_information, changes)
 changes = ifilter(not_mine, changes)
 changes = ifilter(has_changed_since_comment, changes)
-sys.stdout.write(str(Template(file="display.tmpl",
+template_file = str(conf.get("template_file", "display.tmpl"))
+sys.stdout.write(str(Template(file=template_file,
                               searchList=[{"changes": changes,
                                            "fit_width": fit_width}])))
