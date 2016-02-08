@@ -20,7 +20,7 @@
 #else
 #set $flags = $flags + "C"
 #end if
- $fit_width($flags, $FLAGS_COL_WIDTH) | $fit_width($change.subject, $MESSAGE_COL_WIDTH) | $fit_width($change.project, $PROJECT_COL_WIDTH) | $fit_width($change.topic, $TOPIC_COL_WIDTH) | $fit_width($change.owner.username, $USER_COL_WIDTH) | $change.diff_url
+ $fit_width($flags, $FLAGS_COL_WIDTH) | $fit_width($change.subject, $MESSAGE_COL_WIDTH) | $fit_width($change.project, $PROJECT_COL_WIDTH) | $fit_width($change.get('topic', ''), $TOPIC_COL_WIDTH) | $fit_width($change.owner.username, $USER_COL_WIDTH) | $change.diff_url
 #end for
 -${"-" * $FLAGS_COL_WIDTH}---${"-" * $MESSAGE_COL_WIDTH}---${"-" * $PROJECT_COL_WIDTH}---${"-" * $TOPIC_COL_WIDTH}---${"-" * $USER_COL_WIDTH}---${"-" * $URL_COL_WIDTH}-
 $count items left to review

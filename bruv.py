@@ -56,7 +56,7 @@ username = conf.get("username", "john")
 host = conf.get("host", "review.openstack.org")
 port = conf.get("port", 29418)
 query = conf.get("query", "")
-template_path = conf.get("template_file", "display.tmpl")
+template_path = str(conf.get("template_file", "display.tmpl"))
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
 
@@ -71,12 +71,12 @@ def get_private_key():
 
 
 def is_me(user_dict):
-    return user_dict['username'] == username
+    return user_dict.get('username') == username
 
 
 def find_last_comment_by(comments, username):
     for comment in reversed(comments):
-        if comment["reviewer"]["username"] == username:
+        if comment["reviewer"].get("username") == username:
             return comment
 
     return None
@@ -84,7 +84,7 @@ def find_last_comment_by(comments, username):
 
 def remove_jenkins_comments(change):
     change["comments"] = filter(
-        lambda comment: comment["reviewer"]["username"] != "jenkins",
+        lambda comment: comment["reviewer"].get("username") != "jenkins",
         change["comments"])
     return change
 
@@ -129,6 +129,7 @@ g = Gerrit(host, port, username, pkey)
 changes = g.query(query,
                   options=[QueryOptions.Comments,
                            QueryOptions.CurrentPatchSet])
+
 changes = imap(remove_jenkins_comments, changes)
 changes = imap(add_last_checked_information, changes)
 changes = ifilter(not_mine, changes)
