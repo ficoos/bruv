@@ -6,6 +6,7 @@ import re
 import json
 import fcntl
 import termios
+import time
 import struct
 
 from itertools import imap, ifilter
@@ -19,6 +20,11 @@ from gerrit import (
     Gerrit,
 )
 
+import pickle
+try:
+    import anydbm as dbm
+except ImportError:
+    import dbm
 
 def get_terminal_size():
     env = os.environ
@@ -57,10 +63,38 @@ host = conf.get("host", "review.openstack.org")
 port = conf.get("port", 29418)
 query = conf.get("query", "")
 template_path = str(conf.get("template_file", "display.tmpl"))
+db_path = str(conf.get("db_file", "bruv.db"))
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
 COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)", re.MULTILINE)
 
+class DBMDataStore(object):
+    def __init__(self, db_path):
+        self.dbm = dbm.open(db_path, 'c')
+
+    def _encode(self, data):
+        return pickle.dumps(data)
+
+    def _decode(self, data):
+        if not data:
+            return None
+        return pickle.loads(data)
+
+    def set(self, change_number, data):
+        data['number'] = change_number
+        self.dbm[str(change_number)] = self._encode(data)
+
+    def get(self, change_number):
+        saved_record = self.dbm.get(str(change_number))
+        return self._decode(saved_record)
+
+    def get_all(self):
+        keys = self.dbm.keys()
+        values = [self._decode(self.dbm[key]) for key in keys]
+        return values
+
+def get_data_store():
+    return DBMDataStore(db_path)
 
 def get_private_key():
     agent = paramiko.agent.Agent()
@@ -143,29 +177,76 @@ def add_last_checked_information(change):
 
     return change
 
+
+def mark_is_read(change):
+    db = get_data_store()
+    saved_record = db.get(change['number'])
+    if saved_record:
+        change['lastRead'] = saved_record['lastRead']
+        change['is_read'] = (int(change['lastRead']) > int(change['lastUpdated']))
+    else:
+        change['is_read'] = False
+
+    return change
+
+
+def unread(change):
+    return not change['is_read']
+
+
 def fit_width(s, n):
     if len(s) > n:
         return s[:n-3] + "..."
     else:
         return s + " " * (n - len(s))
 
-pkey = get_private_key()
-g = Gerrit(host, port, username, pkey)
-changes = g.query(query,
-                  options=[QueryOptions.Comments,
-                           QueryOptions.CurrentPatchSet,
-                           QueryOptions.CommitMessage])
+args = sys.argv
+if len(args) <= 1:
+    pkey = get_private_key()
+    g = Gerrit(host, port, username, pkey)
+    changes = g.query(query,
+                      options=[QueryOptions.Comments,
+                               QueryOptions.CurrentPatchSet,
+                               QueryOptions.CommitMessage])
 
-changes = imap(remove_jenkins_comments, changes)
-changes = imap(add_last_checked_information, changes)
-changes = imap(extract_headers, changes)
-changes = imap(does_relate_to_bug, changes)
-changes = imap(is_spec, changes)
-#changes = ifilter(not_mine, changes)
-changes = ifilter(has_changed_since_comment, changes)
-sys.stdout.write(str(Template(
-    file=template_path,
-    searchList=[{"changes": changes,
-                 "fit_width": fit_width,
-                 "terminal_size": get_terminal_size(),
-                 }])))
+    changes = imap(remove_jenkins_comments, changes)
+    changes = imap(add_last_checked_information, changes)
+    changes = imap(mark_is_read, changes)
+    changes = imap(extract_headers, changes)
+    changes = imap(does_relate_to_bug, changes)
+    changes = imap(is_spec, changes)
+    #changes = ifilter(not_mine, changes)
+    changes = ifilter(has_changed_since_comment, changes)
+    changes = ifilter(unread, changes)
+    sys.stdout.write(str(Template(
+        file=template_path,
+        searchList=[{"changes": changes,
+                     "fit_width": fit_width,
+                     "terminal_size": get_terminal_size(),
+                     }])))
+elif args[1] == 'read':
+    db = get_data_store()
+    number = args[2]
+    record = db.get(number)
+    if not record:
+        record = {}
+    record['lastRead'] = time.mktime(time.gmtime())
+    db.set(number, record)
+elif args[1] == 'unread':
+    db = get_data_store()
+    number = args[2]
+    record = db.get(number)
+    if not record:
+        record = {}
+    record['lastRead'] = 0
+    db.set(number, record)
+elif args[1] == 'showrecord':
+    db = get_data_store()
+    number = args[2]
+    record = db.get(number)
+    print(number, record)
+elif args[1] == 'showdb':
+    db = get_data_store()
+    print(db.get_all())
+elif args[1] == 'help':
+    print("USAGE: {} [{read|lastRead|showrecord|showdb}]".format(args[0]))
