@@ -20,9 +20,15 @@
 #else
 #set $flags = $flags + "C"
 #end if
+#if $change.related_bugs
+#set $flags = $flags + "B"
+#end if
+#if $change.is_blueprint
+#set $flags = $flags + "P"
+#end if
  $fit_width($flags, $FLAGS_COL_WIDTH) | $fit_width($change.subject, $MESSAGE_COL_WIDTH) | $fit_width($change.project, $PROJECT_COL_WIDTH) | $fit_width($change.get('topic', ''), $TOPIC_COL_WIDTH) | $fit_width($change.owner.username, $USER_COL_WIDTH) | $change.diff_url
 #end for
 -${"-" * $FLAGS_COL_WIDTH}---${"-" * $MESSAGE_COL_WIDTH}---${"-" * $PROJECT_COL_WIDTH}---${"-" * $TOPIC_COL_WIDTH}---${"-" * $USER_COL_WIDTH}---${"-" * $URL_COL_WIDTH}-
 $count items left to review
 
--- Flags: [N]ew, [U]pdated Patch Set, New [C]omments
+-- Flags: [N]ew, [U]pdated Patch Set, New [C]omments, Relates to a [B]ug, Blue-[P]rint

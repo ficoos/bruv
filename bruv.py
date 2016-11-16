@@ -59,6 +59,7 @@ query = conf.get("query", "")
 template_path = str(conf.get("template_file", "display.tmpl"))
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
+COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)", re.MULTILINE)
 
 
 def get_private_key():
@@ -88,6 +89,21 @@ def remove_jenkins_comments(change):
         change["comments"])
     return change
 
+def extract_headers(change):
+    msg = change["commitMessage"]
+    headers = COMMIT_HEADER_RE.findall(msg)
+    change['headers'] = headers
+    return change
+
+
+def does_relate_to_bug(change):
+    BUG_REALTED_HEADERS = {'Closes-Bug', 'Partial-Bug', 'Related-Bug'}
+    change['related_bugs'] = set()
+    for key, value in change['headers']:
+        if key in BUG_REALTED_HEADERS:
+            change['related_bugs'].add(value)
+
+    return change
 
 def not_mine(change):
     return not is_me(change['owner'])
@@ -95,6 +111,16 @@ def not_mine(change):
 
 def has_changed_since_comment(change):
     return not is_me(change["comments"][-1]["reviewer"])
+
+def is_spec(change):
+    is_blueprint = False
+    for key, value in change['headers']:
+        if key == "Implements":
+            if value.startswith('blueprint'):
+                is_blueprint = True
+
+    change['is_blueprint'] = is_blueprint
+    return change
 
 
 def add_last_checked_information(change):
@@ -117,7 +143,6 @@ def add_last_checked_information(change):
 
     return change
 
-
 def fit_width(s, n):
     if len(s) > n:
         return s[:n-3] + "..."
@@ -128,11 +153,15 @@ pkey = get_private_key()
 g = Gerrit(host, port, username, pkey)
 changes = g.query(query,
                   options=[QueryOptions.Comments,
-                           QueryOptions.CurrentPatchSet])
+                           QueryOptions.CurrentPatchSet,
+                           QueryOptions.CommitMessage])
 
 changes = imap(remove_jenkins_comments, changes)
 changes = imap(add_last_checked_information, changes)
-changes = ifilter(not_mine, changes)
+changes = imap(extract_headers, changes)
+changes = imap(does_relate_to_bug, changes)
+changes = imap(is_spec, changes)
+#changes = ifilter(not_mine, changes)
 changes = ifilter(has_changed_since_comment, changes)
 sys.stdout.write(str(Template(
     file=template_path,
