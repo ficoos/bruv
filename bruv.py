@@ -49,14 +49,17 @@ def get_terminal_size():
     return int(cr[1]), int(cr[0])
 
 
-conf = json.load(open(os.path.expanduser("~/.bruvrc")))
-
-pkey_path = os.path.expanduser(conf.get("private_key", "~/.ssh/id_rsa"))
-username = conf.get("username", "john")
-host = conf.get("host", "review.openstack.org")
-port = conf.get("port", 29418)
-query = conf.get("query", "")
-template_path = str(conf.get("template_file", "display.tmpl"))
+def load_configuration():
+    conf = json.load(open(os.path.expanduser("~/.bruvrc")))
+    result = object()
+    result.pkey_path = \
+        os.path.expanduser(conf.get("private_key", "~/.ssh/id_rsa"))
+    result.username = conf.get("username", "john")
+    result.host = conf.get("host", "review.openstack.org")
+    result.port = conf.get("port", 29418)
+    result.query = conf.get("query", "")
+    result.template_path = str(conf.get("template_file", "display.tmpl"))
+    return result
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
 COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)", re.MULTILINE)
@@ -149,23 +152,24 @@ def fit_width(s, n):
     else:
         return s + " " * (n - len(s))
 
-pkey = get_private_key()
-g = Gerrit(host, port, username, pkey)
-changes = g.query(query,
-                  options=[QueryOptions.Comments,
-                           QueryOptions.CurrentPatchSet,
-                           QueryOptions.CommitMessage])
+if __name__ == "__main__":
+    pkey = get_private_key()
+    g = Gerrit(host, port, username, pkey)
+    changes = g.query(query,
+                      options=[QueryOptions.Comments,
+                               QueryOptions.CurrentPatchSet,
+                               QueryOptions.CommitMessage])
 
-changes = imap(remove_jenkins_comments, changes)
-changes = imap(add_last_checked_information, changes)
-changes = imap(extract_headers, changes)
-changes = imap(does_relate_to_bug, changes)
-changes = imap(is_spec, changes)
-#changes = ifilter(not_mine, changes)
-changes = ifilter(has_changed_since_comment, changes)
-sys.stdout.write(str(Template(
-    file=template_path,
-    searchList=[{"changes": changes,
-                 "fit_width": fit_width,
-                 "terminal_size": get_terminal_size(),
-                 }])))
+    changes = imap(remove_jenkins_comments, changes)
+    changes = imap(add_last_checked_information, changes)
+    changes = imap(extract_headers, changes)
+    changes = imap(does_relate_to_bug, changes)
+    changes = imap(is_spec, changes)
+    #changes = ifilter(not_mine, changes)
+    changes = ifilter(has_changed_since_comment, changes)
+    sys.stdout.write(str(Template(
+        file=template_path,
+        searchList=[{"changes": changes,
+                     "fit_width": fit_width,
+                     "terminal_size": get_terminal_size(),
+                     }])))
