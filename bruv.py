@@ -8,10 +8,7 @@ import fcntl
 import termios
 import struct
 
-from itertools import imap, ifilter
-
 import paramiko
-from Cheetah.Template import Template
 
 
 from gerrit import (
@@ -49,29 +46,43 @@ def get_terminal_size():
     return int(cr[1]), int(cr[0])
 
 
+class Configuration(object):
+    def __init__(self):
+        self.pkey_path = None
+        self.username = None
+        self.host = None
+        self.port = None
+        self.query = None
+
+    def _get_private_key(self):
+        agent = paramiko.agent.Agent()
+        keys_by_path = {key.get_name(): key for key in agent.get_keys()}
+        if self.pkey_path in keys_by_path:
+            return keys_by_path[self.pkey_path]
+
+        pkey = paramiko.RSAKey(filename=self.pkey_path)
+        return pkey
+
+    @staticmethod
+    def load_from_file(path):
+        raw_conf = json.load(open(path))
+        conf = Configuration()
+        conf.pkey_path = \
+            os.path.expanduser(raw_conf.get("private_key", "~/.ssh/id_rsa"))
+        conf.username = raw_conf.get("username", "ficoos")
+        conf.host = raw_conf.get("host", "review.openstack.org")
+        conf.port = raw_conf.get("port", 29418)
+        conf.query = raw_conf.get("query", "is:open")
+        conf.pkey = conf._get_private_key()
+        return conf
+
+
 def load_configuration():
-    conf = json.load(open(os.path.expanduser("~/.bruvrc")))
-    result = object()
-    result.pkey_path = \
-        os.path.expanduser(conf.get("private_key", "~/.ssh/id_rsa"))
-    result.username = conf.get("username", "john")
-    result.host = conf.get("host", "review.openstack.org")
-    result.port = conf.get("port", 29418)
-    result.query = conf.get("query", "")
-    result.template_path = str(conf.get("template_file", "display.tmpl"))
-    return result
+    return Configuration.load_from_file(os.path.expanduser("~/.bruvrc"))
+
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
 COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)", re.MULTILINE)
-
-
-def get_private_key():
-    agent = paramiko.agent.Agent()
-    keys_by_path = {key.get_name(): key for key in agent.get_keys()}
-    if pkey_path in keys_by_path:
-        return keys_by_path[pkey_path]
-    pkey = paramiko.RSAKey(filename=pkey_path)
-    return pkey
 
 
 def is_me(user_dict):
