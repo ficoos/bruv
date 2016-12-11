@@ -8,6 +8,7 @@ import fcntl
 import termios
 import time
 import struct
+import argparse
 
 from itertools import imap, ifilter
 
@@ -200,8 +201,7 @@ def fit_width(s, n):
     else:
         return s + " " * (n - len(s))
 
-args = sys.argv
-if len(args) <= 1:
+def handle_list(args=None):
     pkey = get_private_key()
     g = Gerrit(host, port, username, pkey)
     changes = g.query(query,
@@ -224,29 +224,68 @@ if len(args) <= 1:
                      "fit_width": fit_width,
                      "terminal_size": get_terminal_size(),
                      }])))
-elif args[1] == 'read':
+
+def handle_read(args):
     db = get_data_store()
-    number = args[2]
+    number = args.review
     record = db.get(number)
     if not record:
         record = {}
-    record['lastRead'] = time.mktime(time.gmtime())
+    record['lastRead'] = time.time()
     db.set(number, record)
-elif args[1] == 'unread':
+
+def handle_unread(args):
     db = get_data_store()
-    number = args[2]
+    number = args.review
     record = db.get(number)
     if not record:
         record = {}
     record['lastRead'] = 0
     db.set(number, record)
-elif args[1] == 'showrecord':
+
+def handle_showrecord(args):
     db = get_data_store()
-    number = args[2]
+    number = args.review
     record = db.get(number)
     print(number, record)
-elif args[1] == 'showdb':
+
+def handle_showdb(args):
     db = get_data_store()
     print(db.get_all())
-elif args[1] == 'help':
-    print("USAGE: {} [{read|lastRead|showrecord|showdb}]".format(args[0]))
+
+parser = argparse.ArgumentParser(description='Gerrit review helper tool')
+parser.set_defaults(func=handle_list)
+
+subparsers = parser.add_subparsers(title='subcommands')
+
+list_subparser = subparsers.add_parser('list',
+                                       help='List all (unread) reviews')
+list_subparser.set_defaults(func=handle_list)
+
+read_subparser = subparsers.add_parser('read', help='Mark a review as read')
+read_subparser.set_defaults(func=handle_read)
+read_subparser.add_argument('review', help='The review to mark as read')
+
+unread_subparser = subparsers.add_parser(
+    'unread',
+    help='Mark a review as unread'
+)
+unread_subparser.set_defaults(func=handle_unread)
+unread_subparser.add_argument('review', help='The review to mark as unread')
+
+showrecord_subparser = subparsers.add_parser(
+    'showrecord',
+    help='Show DB record for a review',
+)
+showrecord_subparser.set_defaults(func=handle_showrecord)
+showrecord_subparser.add_argument('review', help='The review to show')
+
+showdb_subparser = subparsers.add_parser('showdb', help='Show bruv DB')
+showdb_subparser.set_defaults(func=handle_showdb)
+
+
+if len(sys.argv) == 1:
+    handle_list()
+else:
+    args = parser.parse_args()
+    args.func(args)
