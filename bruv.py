@@ -11,6 +11,7 @@ import termios
 import time
 import struct
 import argparse
+import getpass
 
 import paramiko
 from jinja2 import Template
@@ -37,10 +38,12 @@ def arg2lambda(arg):
     exec(comp_filter, {}, ctx)
     return ctx['target']
 
-def arg2func(arg):
+def arg2mapfunc(arg):
     mod = ast.parse('def target(change): pass')
     user = ast.parse(arg)
     mod.body[0].body = user.body
+    mod.body[0].body.append(ast.Return(ast.Name("change", ast.Load())))
+    ast.fix_missing_locations(mod)
     comp_filter = compile(mod, '<string>', 'exec')
     ctx = {}
     exec(comp_filter, {}, ctx)
@@ -49,7 +52,7 @@ def arg2func(arg):
 
 class BruvShell(cmd.Cmd):
     intro = 'Welcome to the bruv shell.   Type help or ? to list commands.\n'
-    prompt = '(bruv)'
+    prompt = '(bruv) '
 
     def __init__(self, completekey='tab', stdin=None, stdout=None):
         if stdin is not None:
@@ -60,6 +63,19 @@ class BruvShell(cmd.Cmd):
         super(BruvShell, self).__init__(completekey, stdin, stdout)
         self.data = []
         self.query = ''
+        self.host = 'review.openstack.org'
+        self.port = 29418
+        self.username = getpass.getuser()
+        self.pkey_path = os.path.expanduser('~/.ssh/id_rsa')
+
+    def _get_private_key(self):
+        agent = paramiko.agent.Agent()
+        keys_by_path = {key.get_name(): key for key in agent.get_keys()}
+        if self.pkey_path in keys_by_path:
+            return keys_by_path[self.pkey_path]
+
+        pkey = paramiko.RSAKey(filename=self.pkey_path)
+        return pkey
 
     def default(self, line):
         # Handle CTRL+D
@@ -87,6 +103,38 @@ class BruvShell(cmd.Cmd):
         self.query = arg
         self.do_refresh(None)
 
+    def do_set(self, arg):
+        "Set a configuration value"
+        args = arg.split()
+        if len(args) != 2:
+            print("Could not parse command")
+            print("usage: set <key> <value>")
+            return
+
+        if args[0] in ("user"):
+            self.username = args[1]
+        elif args[0] in ("pkey",):
+            self.pkey_path = os.path.expanduser(args[1])
+        elif args[0] in ("host",):
+            self.host = arg[1]
+        elif args[0] in ("port",):
+            try:
+                self.port = int(arg[1])
+            except:
+                print("Invalid port number")
+        else:
+            print("No such configuration")
+
+    def complete_set(self, text, line, begidx, endidx):
+        # We add '@' as a hack to accurately count words
+        args = (line + '@').split()
+        if len(args) > 2:
+            return
+
+        return [entry
+                for entry in ("user", "host", "port", "pkey")
+                if entry.startswith(text)]
+
     def do_filter(self, arg):
         'Create a simple filter for current data set'
         user_filter = arg2lambda(arg)
@@ -94,14 +142,14 @@ class BruvShell(cmd.Cmd):
 
     def do_map(self, arg):
         'Create a simpler mapper for current data set'
-        user_mapper = arg2func(arg)
+        user_mapper = arg2mapfunc(arg)
         self.data = map(user_mapper, self.data)
 
     def do_refresh(self, arg):
         'Refresh data for last query'
-        pkey = get_private_key()
-        g = Gerrit(host, port, username, pkey)
+        pkey = self._get_private_key()
         try:
+            g = Gerrit(self.host, self.port, self.username, pkey)
             changes = g.query(self.query,
                               options=[QueryOptions.Comments,
                                        QueryOptions.CurrentPatchSet,
@@ -119,6 +167,8 @@ class BruvShell(cmd.Cmd):
             print("%d results" % (len(self.data),))
         except GerritError as e:
             print(e.message.strip())
+        except Exception as e:
+            print(e)
 
     def do_print(self, arg):
         'Print data from query'
@@ -207,13 +257,6 @@ def get_data_store():
     return DBMDataStore(db_path)
 
 
-def get_private_key():
-    agent = paramiko.agent.Agent()
-    keys_by_path = {key.get_name(): key for key in agent.get_keys()}
-    if pkey_path in keys_by_path:
-        return keys_by_path[pkey_path]
-    pkey = paramiko.RSAKey(filename=pkey_path)
-    return pkey
 
 
 def is_me(user_dict):

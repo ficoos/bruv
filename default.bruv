@@ -1,3 +1,4 @@
+set user ficoos
 query is:owner and is:open
 map if 'B' in change['subject']: change['tag'] = True
 filter change.get('tag')
