@@ -1,5 +1,7 @@
-#!/bin/env python
+#!/bin/env python3
 
+import ast
+import cmd
 import sys
 import os
 import re
@@ -10,15 +12,13 @@ import time
 import struct
 import argparse
 
-from itertools import imap, ifilter
-
 import paramiko
-from Cheetah.Template import Template
-
+from jinja2 import Template
 
 from gerrit import (
     QueryOptions,
     Gerrit,
+    GerritError,
 )
 
 import pickle
@@ -26,6 +26,113 @@ try:
     import anydbm as dbm
 except ImportError:
     import dbm
+
+
+def arg2lambda(arg):
+    mod = ast.parse('target = lambda change: change')
+    user = ast.parse(arg)
+    mod.body[0].value.body = user.body[0].value
+    comp_filter = compile(mod, '<string>', 'exec')
+    ctx = {}
+    exec(comp_filter, {}, ctx)
+    return ctx['target']
+
+def arg2func(arg):
+    mod = ast.parse('def target(change): pass')
+    user = ast.parse(arg)
+    mod.body[0].body = user.body
+    comp_filter = compile(mod, '<string>', 'exec')
+    ctx = {}
+    exec(comp_filter, {}, ctx)
+    return ctx['target']
+
+
+class BruvShell(cmd.Cmd):
+    intro = 'Welcome to the bruv shell.   Type help or ? to list commands.\n'
+    prompt = '(bruv)'
+
+    def __init__(self, completekey='tab', stdin=None, stdout=None):
+        if stdin is not None:
+            self.intro = None
+            self.prompt = ''
+            self.use_rawinput = False
+
+        super(BruvShell, self).__init__(completekey, stdin, stdout)
+        self.data = []
+        self.query = ''
+
+    def default(self, line):
+        # Handle CTRL+D
+        if line == "EOF":
+            print()
+            return self.do_exit(None)
+
+        cmd, arg, line = self.parseline(line)
+        if cmd == "q":
+            cmd == "query"
+
+        if cmd == "r":
+            cmd == "refresh"
+
+        if cmd == "p":
+            cmd == "print"
+
+        func = [getattr(self, n)
+                for n in self.get_names() if n.startswith('do_' + cmd)]
+        if func:
+            func[0](arg)
+
+    def do_query(self, arg):
+        'Gather data for a query'
+        self.query = arg
+        self.do_refresh(None)
+
+    def do_filter(self, arg):
+        'Create a simple filter for current data set'
+        user_filter = arg2lambda(arg)
+        self.data = filter(user_filter, self.data)
+
+    def do_map(self, arg):
+        'Create a simpler mapper for current data set'
+        user_mapper = arg2func(arg)
+        self.data = map(user_mapper, self.data)
+
+    def do_refresh(self, arg):
+        'Refresh data for last query'
+        pkey = get_private_key()
+        g = Gerrit(host, port, username, pkey)
+        try:
+            changes = g.query(self.query,
+                              options=[QueryOptions.Comments,
+                                       QueryOptions.CurrentPatchSet,
+                                       QueryOptions.CommitMessage])
+
+            changes = map(remove_jenkins_comments, changes)
+            changes = map(add_last_checked_information, changes)
+            #changes = map(mark_is_read, changes)
+            changes = map(extract_headers, changes)
+            changes = map(does_relate_to_bug, changes)
+            changes = map(is_spec, changes)
+
+            self.data = list(changes)
+
+            print("%d results" % (len(self.data),))
+        except GerritError as e:
+            print(e.message.strip())
+
+    def do_print(self, arg):
+        'Print data from query'
+        template = Template(open('list.j2').read())
+        print(template.render(changes=self.data))
+
+    def do_exit(self, arg):
+        'Exit the bruv shell'
+        self.close()
+        return True
+
+    def close(self):
+        pass
+
 
 def get_terminal_size():
     env = os.environ
@@ -69,6 +176,7 @@ db_path = str(conf.get("db_file", "bruv.db"))
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
 COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)", re.MULTILINE)
 
+
 class DBMDataStore(object):
     def __init__(self, db_path):
         self.dbm = dbm.open(db_path, 'c')
@@ -94,8 +202,10 @@ class DBMDataStore(object):
         values = [self._decode(self.dbm[key]) for key in keys]
         return values
 
+
 def get_data_store():
     return DBMDataStore(db_path)
+
 
 def get_private_key():
     agent = paramiko.agent.Agent()
@@ -119,10 +229,11 @@ def find_last_comment_by(comments, username):
 
 
 def remove_jenkins_comments(change):
-    change["comments"] = filter(
+    change["comments"] = list(filter(
         lambda comment: comment["reviewer"].get("username") != "jenkins",
-        change["comments"])
+        change["comments"]))
     return change
+
 
 def extract_headers(change):
     msg = change["commitMessage"]
@@ -140,12 +251,14 @@ def does_relate_to_bug(change):
 
     return change
 
+
 def not_mine(change):
     return not is_me(change['owner'])
 
 
 def has_changed_since_comment(change):
     return not is_me(change["comments"][-1]["reviewer"])
+
 
 def is_spec(change):
     is_blueprint = False
@@ -169,7 +282,7 @@ def add_last_checked_information(change):
         change["change_since_last_comment"] = (
             current_path_set != last_patch_set)
         if last_patch_set != current_path_set:
-            change["diff_url"] = "http://%s/#/c/%s/%d..%d//COMMIT_MSG" % (
+            change["diff_url"] = "http://%s/#/c/%s/%d..%d/" % (
                 host, change["number"], last_patch_set, current_path_set
             )
     else:
@@ -201,6 +314,8 @@ def fit_width(s, n):
     else:
         return s + " " * (n - len(s))
 
+
+
 def handle_list(args=None):
     pkey = get_private_key()
     g = Gerrit(host, port, username, pkey)
@@ -209,21 +324,22 @@ def handle_list(args=None):
                                QueryOptions.CurrentPatchSet,
                                QueryOptions.CommitMessage])
 
-    changes = imap(remove_jenkins_comments, changes)
-    changes = imap(add_last_checked_information, changes)
-    changes = imap(mark_is_read, changes)
-    changes = imap(extract_headers, changes)
-    changes = imap(does_relate_to_bug, changes)
-    changes = imap(is_spec, changes)
-    #changes = ifilter(not_mine, changes)
-    changes = ifilter(has_changed_since_comment, changes)
-    changes = ifilter(unread, changes)
+    changes = map(remove_jenkins_comments, changes)
+    changes = map(add_last_checked_information, changes)
+    changes = map(mark_is_read, changes)
+    changes = map(extract_headers, changes)
+    changes = map(does_relate_to_bug, changes)
+    changes = map(is_spec, changes)
+    #changes = filter(not_mine, changes)
+    changes = filter(has_changed_since_comment, changes)
+    changes = filter(unread, changes)
     sys.stdout.write(str(Template(
         file=template_path,
         searchList=[{"changes": changes,
                      "fit_width": fit_width,
                      "terminal_size": get_terminal_size(),
                      }])))
+
 
 def handle_read(args):
     db = get_data_store()
@@ -234,6 +350,7 @@ def handle_read(args):
     record['lastRead'] = time.time()
     db.set(number, record)
 
+
 def handle_unread(args):
     db = get_data_store()
     number = args.review
@@ -243,49 +360,67 @@ def handle_unread(args):
     record['lastRead'] = 0
     db.set(number, record)
 
+
 def handle_showrecord(args):
     db = get_data_store()
     number = args.review
     record = db.get(number)
     print(number, record)
 
+
 def handle_showdb(args):
     db = get_data_store()
     print(db.get_all())
 
-parser = argparse.ArgumentParser(description='Gerrit review helper tool')
-parser.set_defaults(func=handle_list)
 
-subparsers = parser.add_subparsers(title='subcommands')
+def create_argument_parser():
+    parser = argparse.ArgumentParser(description='Gerrit review helper tool')
+    parser.set_defaults(func=handle_list)
 
-list_subparser = subparsers.add_parser('list',
-                                       help='List all (unread) reviews')
-list_subparser.set_defaults(func=handle_list)
+    subparsers = parser.add_subparsers(title='subcommands')
 
-read_subparser = subparsers.add_parser('read', help='Mark a review as read')
-read_subparser.set_defaults(func=handle_read)
-read_subparser.add_argument('review', help='The review to mark as read')
+    list_subparser = subparsers.add_parser('list',
+                                           help='List all (unread) reviews')
+    list_subparser.set_defaults(func=handle_list)
 
-unread_subparser = subparsers.add_parser(
-    'unread',
-    help='Mark a review as unread'
-)
-unread_subparser.set_defaults(func=handle_unread)
-unread_subparser.add_argument('review', help='The review to mark as unread')
+    read_subparser = subparsers.add_parser('read', help='Mark a review as read')
+    read_subparser.set_defaults(func=handle_read)
+    read_subparser.add_argument('review', help='The review to mark as read')
 
-showrecord_subparser = subparsers.add_parser(
-    'showrecord',
-    help='Show DB record for a review',
-)
-showrecord_subparser.set_defaults(func=handle_showrecord)
-showrecord_subparser.add_argument('review', help='The review to show')
+    unread_subparser = subparsers.add_parser(
+        'unread',
+        help='Mark a review as unread'
+    )
+    unread_subparser.set_defaults(func=handle_unread)
+    unread_subparser.add_argument('review', help='The review to mark as unread')
 
-showdb_subparser = subparsers.add_parser('showdb', help='Show bruv DB')
-showdb_subparser.set_defaults(func=handle_showdb)
+    showrecord_subparser = subparsers.add_parser(
+        'showrecord',
+        help='Show DB record for a review',
+    )
+    showrecord_subparser.set_defaults(func=handle_showrecord)
+    showrecord_subparser.add_argument('review', help='The review to show')
+
+    showdb_subparser = subparsers.add_parser('showdb', help='Show bruv DB')
+    showdb_subparser.set_defaults(func=handle_showdb)
+
+    return parser
 
 
-if len(sys.argv) == 1:
-    handle_list()
-else:
-    args = parser.parse_args()
-    args.func(args)
+def main():
+    stdin = None
+    if len(sys.argv) > 1:
+        stdin = open(sys.argv[1])
+
+    BruvShell(stdin=stdin).cmdloop()
+    return
+    parser = create_argument_parser()
+
+    if len(sys.argv) == 1:
+        handle_list()
+    else:
+        args = parser.parse_args()
+        args.func(args)
+
+if __name__ == "__main__":
+    main()
