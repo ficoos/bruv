@@ -201,7 +201,7 @@ def fit_width(s, n):
     else:
         return s + " " * (n - len(s))
 
-def handle_list(args=None):
+def get_changes():
     pkey = get_private_key()
     g = Gerrit(host, port, username, pkey)
     changes = g.query(query,
@@ -218,6 +218,10 @@ def handle_list(args=None):
     #changes = ifilter(not_mine, changes)
     changes = ifilter(has_changed_since_comment, changes)
     changes = ifilter(unread, changes)
+    return changes
+
+def handle_list(args=None):
+    changes = get_changes()
     sys.stdout.write(str(Template(
         file=template_path,
         searchList=[{"changes": changes,
