@@ -288,8 +288,9 @@ showdb_subparser = subparsers.add_parser('showdb', help='Show bruv DB')
 showdb_subparser.set_defaults(func=handle_showdb)
 
 
-if len(sys.argv) == 1:
-    handle_list()
-else:
-    args = parser.parse_args()
-    args.func(args)
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        handle_list()
+    else:
+        args = parser.parse_args()
+        args.func(args)
