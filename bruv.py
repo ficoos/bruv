@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/bin/env python3
 
 import sys
 import os
@@ -8,13 +8,10 @@ import fcntl
 import termios
 import time
 import struct
-import argparse
 
-from itertools import imap, ifilter
+from functools import partial
 
 import paramiko
-from Cheetah.Template import Template
-
 
 from gerrit import (
     QueryOptions,
@@ -26,6 +23,7 @@ try:
     import anydbm as dbm
 except ImportError:
     import dbm
+
 
 def get_terminal_size():
     env = os.environ
@@ -63,11 +61,11 @@ username = conf.get("username", "john")
 host = conf.get("host", "review.openstack.org")
 port = conf.get("port", 29418)
 query = conf.get("query", "")
-template_path = str(conf.get("template_file", "display.tmpl"))
 db_path = str(conf.get("db_file", "bruv.db"))
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
-COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)", re.MULTILINE)
+COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)",
+                              re.MULTILINE)
 
 class DBMDataStore(object):
     def __init__(self, db_path):
@@ -201,96 +199,68 @@ def fit_width(s, n):
     else:
         return s + " " * (n - len(s))
 
-def get_changes():
-    pkey = get_private_key()
-    g = Gerrit(host, port, username, pkey)
-    changes = g.query(query,
-                      options=[QueryOptions.Comments,
-                               QueryOptions.CurrentPatchSet,
-                               QueryOptions.CommitMessage])
 
-    changes = imap(remove_jenkins_comments, changes)
-    changes = imap(add_last_checked_information, changes)
-    changes = imap(mark_is_read, changes)
-    changes = imap(extract_headers, changes)
-    changes = imap(does_relate_to_bug, changes)
-    changes = imap(is_spec, changes)
-    #changes = ifilter(not_mine, changes)
-    changes = ifilter(has_changed_since_comment, changes)
-    changes = ifilter(unread, changes)
+def _process_flow(flow, changes):
+    for item in flow:
+        changes = item(changes)
+
     return changes
 
-def handle_list(args=None):
-    changes = get_changes()
-    sys.stdout.write(str(Template(
-        file=template_path,
-        searchList=[{"changes": changes,
-                     "fit_width": fit_width,
-                     "terminal_size": get_terminal_size(),
-                     }])))
 
-def handle_read(args):
-    db = get_data_store()
-    number = args.review
-    record = db.get(number)
-    if not record:
-        record = {}
-    record['lastRead'] = time.time()
-    db.set(number, record)
+class FlowBuilder(object):
+    def __init__(self):
+        self._flow = []
 
-def handle_unread(args):
-    db = get_data_store()
-    number = args.review
-    record = db.get(number)
-    if not record:
-        record = {}
-    record['lastRead'] = 0
-    db.set(number, record)
+    def add_mapper(self, mapper_func):
+        self._flow.append(partial(map, mapper_func))
+        return self
 
-def handle_showrecord(args):
-    db = get_data_store()
-    number = args.review
-    record = db.get(number)
-    print(number, record)
+    def add_filter(self, filter_func):
+        self._flow.append(partial(ifilter, filter_func))
+        return self
 
-def handle_showdb(args):
-    db = get_data_store()
-    print(db.get_all())
+    def add_subflow(self, flow):
+        self._flow.append(flow)
+        return self
 
-parser = argparse.ArgumentParser(description='Gerrit review helper tool')
-parser.set_defaults(func=handle_list)
-
-subparsers = parser.add_subparsers(title='subcommands')
-
-list_subparser = subparsers.add_parser('list',
-                                       help='List all (unread) reviews')
-list_subparser.set_defaults(func=handle_list)
-
-read_subparser = subparsers.add_parser('read', help='Mark a review as read')
-read_subparser.set_defaults(func=handle_read)
-read_subparser.add_argument('review', help='The review to mark as read')
-
-unread_subparser = subparsers.add_parser(
-    'unread',
-    help='Mark a review as unread'
-)
-unread_subparser.set_defaults(func=handle_unread)
-unread_subparser.add_argument('review', help='The review to mark as unread')
-
-showrecord_subparser = subparsers.add_parser(
-    'showrecord',
-    help='Show DB record for a review',
-)
-showrecord_subparser.set_defaults(func=handle_showrecord)
-showrecord_subparser.add_argument('review', help='The review to show')
-
-showdb_subparser = subparsers.add_parser('showdb', help='Show bruv DB')
-showdb_subparser.set_defaults(func=handle_showdb)
+    def build(self):
+        return partial(_process_flow, self._flow[:])
 
 
-if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        handle_list()
-    else:
-        args = parser.parse_args()
-        args.func(args)
+def _IDENTITY_FLOW(changes):
+    return changes
+
+
+class ChangesFetcher(object):
+    def __init__(self, host, port, username, pkey):
+        self._gerrit = Gerrit(host, port, username, pkey)
+        self._flow = _IDENTITY_FLOW
+
+    def set_flow(self, flow):
+        self._flow = flow
+
+    def get_changes(self, query):
+        changes = self._gerrit.query(query,
+                                     options=[QueryOptions.Comments,
+                                              QueryOptions.CurrentPatchSet,
+                                              QueryOptions.CommitMessage])
+        return self._flow(changes)
+
+_DEFAULT_FLOW = (FlowBuilder()
+    .add_mapper(remove_jenkins_comments)
+    .add_mapper(add_last_checked_information)
+    .add_mapper(mark_is_read)
+    .add_mapper(extract_headers)
+    .add_mapper(does_relate_to_bug)
+    .add_mapper(is_spec)
+    .add_filter(has_changed_since_comment)
+    .add_filter(unread)
+    .build())
+
+
+def get_changes():
+    pkey = get_private_key()
+    cf = ChangesFetcher(host, port, username, pkey)
+    cf.set_flow(_DEFAULT_FLOW)
+    return cf.get_changes(query)
+
