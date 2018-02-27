@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head><title>BRUV</title></head>
+<!-- script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script -->
+<script src="js/angular.min.js"></script>
+<link rel="stylesheet" href="css/isteven-multi-select.css">
+<script src="js/isteven-multi-select.js"></script>
+<script src="js/ngprogress.min.js"></script>
+<link rel="stylesheet" href="css/ngProgress.css">
+<style>
+table, th , td {
+  border: 1px solid grey;
+  border-collapse: collapse;
+  padding: 5px;
+}
+table tr:nth-child(odd) {
+  background-color: #f1f1f1;
+}
+table tr:nth-child(even) {
+  background-color: #ffffff;
+}
+.selected {
+  background-color: #b0b0ff !important;
+}
+
+</style>
+<body>
+
+<div ng-app="bruv" ng-controller="changesCtrl">
+
+<h1>BRUV</h1>
+<div isteven-multi-select
+    input-model="availableQueries"
+    output-model="selectedQueries"
+    tick-property="ticked"
+    item-label="name description"
+    button-label="name"
+    on-close="refresh()"
+></div>
+<div ng-click="refresh()">Refresh</div>
+
+<table border="1" width="100%">
+<tr>
+<th ng-click="changeOrderTo('number')">Number</th>
+<th>Flags</th>
+<th ng-click="changeOrderTo('subject')">Message</th>
+<th ng-click="changeOrderTo('project')">Project</th>
+<th ng-click="changeOrderTo('owner.name')">User Name</th>
+<th ng-click="changeOrderTo('change.diff_url')">URL</th>
+<th>Change size</th>
+<th/>
+<th ng-click="changeOrderTo('bugs')">Bugs</th>
+</tr>
+<tr ng-repeat="change in changes | orderBy:orderField:reversed" ng-class="{'selected': change.number == selectedNumber }" ng-click="setSelected(change.number)">
+<td>{{ change.number }}</td>
+<td>{{ change.flags }}</td>
+<td>{{ change.subject }}</td>
+<td>{{ change.project }}</td>
+<td>{{ change.owner.name }}</td>
+<td><a href="{{change.diff_url}}">{{change.diff_url}}</a></td>
+<td>+{{change.currentPatchSet.sizeInsertions}} {{change.currentPatchSet.sizeDeletions}}</td>
+<!-- td><a href="/read/{{change.number}}">R</a></td -->
+<td ng-click="markAsRead(change.number)">R</td>
+<td>{{change.bugs}}</td></tr>
+</tr>
+</table>
+<br/>
+ -- Flags: [N]ew, [U]pdated Patch Set, New [C]omments, Relates to a [B]ug, Blue-[P]rint 
+<br/><br/>
+Total: {{changes.length}} reviews
+</div>
+
+<script>
+var app = angular.module('bruv', ["isteven-multi-select", "ngProgress"]);
+app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactory", function($scope, $document, $http, $ngProgressFactory) {
+    // Sorting
+    $scope.reversed = true
+    $scope.changeOrderTo = function(newOrderField) {
+        if ($scope.orderField == newOrderField) {
+            if ($scope.reversed) {
+                $scope.orderField = null
+            } else {
+                $scope.reversed = true
+            }
+        } else {
+            $scope.orderField = newOrderField;
+            $scope.reversed = false
+        }
+    };
+    // Mark as read + hiding
+    $scope.markAsRead = function(number) {
+        $http.get("read/" + number);
+        for(var idx = $scope.changes.length - 1; idx >= 0; idx--) {
+            if ($scope.changes[idx].number === number) {
+                $scope.changes.splice(idx, 1);
+                break;
+            }
+        }
+    };
+    // Select query
+    $scope.availableQueries = [
+        {name:"dragonflow", description:"Dragonflow project", ticked:true},
+        {name:"neutron", description:"Neutron project", ticked:false},
+        {name:"ovsdbapp", description:"OVSD API", ticked:true}
+    ];
+    // Refresh view
+    $scope.isLoading = 0;
+    $scope.changes = [];
+    $scope.progressBar = $ngProgressFactory.createInstance();
+    $scope.refresh = function() {
+        $scope.isFirst = true;
+        angular.forEach($scope.availableQueries, function( value, key ) {
+            if (value.ticked) {
+                $scope.isLoading = $scope.isLoading + 1;
+                if ($scope.isLoading == 1) {
+                        $scope.progressBar.start();
+                }
+                $http.get("list/" + value.name).then(function(response) {
+                    if ($scope.isFirst) {
+                        $scope.isFirst = false;
+                        $scope.changes = [];
+                    }
+                    $scope.changes = $scope.changes.concat(response.data);
+                    $scope.isLoading = $scope.isLoading - 1;
+                    if ($scope.isLoading == 0) {
+                        $scope.progressBar.complete();
+                    }
+                });
+            }
+        });
+    };
+    $scope.refresh();
+    // Color selection
+    $scope.setSelected = function(number) {
+        $scope.selectedNumber = number;
+    };
+    $document.bind("keypress", function(event) {
+        if (event.which == 114) {
+            $scope.refresh();
+        }
+    });
+}]);
+</script>
+
+</body>
+</html>
+

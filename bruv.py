@@ -221,7 +221,7 @@ class FlowBuilder(object):
         return self
 
     def add_filter(self, filter_func):
-        self._flow.append(partial(ifilter, filter_func))
+        self._flow.append(partial(filter, filter_func))
         return self
 
     def add_subflow(self, flow):
@@ -263,9 +263,24 @@ _DEFAULT_FLOW = (FlowBuilder()
     .build())
 
 
-def get_changes():
+def get_changes(query):
     pkey = get_private_key()
     cf = ChangesFetcher(host, port, username, pkey)
     cf.set_flow(_DEFAULT_FLOW)
     return cf.get_changes(query)
 
+def mark_as_read(number):
+    db = get_data_store()
+    record = db.get(number)
+    if not record:
+        record = {}
+    record['lastRead'] = time.time()
+    db.set(number, record)
+
+def mark_as_unread(number):
+    db = get_data_store()
+    record = db.get(number)
+    if not record:
+        record = {}
+    record['lastRead'] = 0
+    db.set(number, record)
