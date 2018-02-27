@@ -161,6 +161,11 @@ def add_last_checked_information(change):
     change["diff_url"] = change["url"]
     if last_comment is not None:
         last_patch_set = PATCH_SET_INFO_RE.findall(last_comment["message"])
+        if not last_patch_set:
+            print 'last comment has no patchets: %s'% last_comment
+            change["change_since_last_comment"] = True
+            change["last_checked_patch_set"] = -1
+            return change
         last_patch_set = int(last_patch_set[0])
         change["last_checked_patch_set"] = last_patch_set
         current_path_set = int(change["currentPatchSet"]["number"])
