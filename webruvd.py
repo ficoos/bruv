@@ -67,4 +67,13 @@ def queries():
     queries_string = json.dumps(queries, default=json_bruv_defaults)
     return queries_string
 
+@bottle.route('/default_queries')
+def queries():
+    try:
+        defaults = bruv.conf['default-queries']
+    except KeyError:
+        return []
+    defaults_json = json.dumps(defaults, default=json_bruv_defaults)
+    return defaults_json
+
 bottle.run(host='localhost', port=8080)

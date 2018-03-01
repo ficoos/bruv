@@ -92,19 +92,10 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
         $http.get("read/" + number);
         delete $scope.changes[number];
     };
-    // Select query (get queries)
-    $scope.availableQueries = []
-    $http.get("queries").then(function(response) {
-        angular.forEach(response.data, function(value, key) {
-                $scope.availableQueries.push({
-                        name: key,
-                        description: value
-                });
-        });
-    });
     // Refresh view
     $scope.isLoading = 0;
     $scope.changes = {};
+    $scope.availableQueries = []
     $scope.progressBar = $ngProgressFactory.createInstance();
     $scope.refresh = function() {
         $scope.isFirst = true;
@@ -130,7 +121,25 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
             }
         });
     };
-    $scope.refresh();
+    // Select query (get queries)
+    $http.get("queries").then(function(response) {
+        angular.forEach(response.data, function(value, key) {
+            $scope.availableQueries.push({
+                    name: key,
+                    description: value,
+		    ticked: false
+            });
+        });
+	$http.get("default_queries").then(function(response) {
+	    defaults = response.data;
+	    angular.forEach($scope.availableQueries, function(query) {
+		if (defaults.includes(query.name)) {
+			query.ticked = true;
+		}
+	    });
+	    $scope.refresh();
+	});
+    });
     // Color selection
     $scope.setSelected = function(number) {
         $scope.selectedNumber = number;
