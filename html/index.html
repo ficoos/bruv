@@ -97,12 +97,16 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
             }
         }
     };
-    // Select query
-    $scope.availableQueries = [
-        {name:"dragonflow", description:"Dragonflow project", ticked:true},
-        {name:"neutron", description:"Neutron project", ticked:false},
-        {name:"ovsdbapp", description:"OVSD API", ticked:true}
-    ];
+    // Select query (get queries)
+    $scope.availableQueries = []
+    $http.get("queries").then(function(response) {
+        angular.forEach(response.data, function(value, key) {
+                $scope.availableQueries.push({
+                        name: key,
+                        description: value
+                });
+        });
+    });
     // Refresh view
     $scope.isLoading = 0;
     $scope.changes = [];

@@ -61,4 +61,10 @@ def read(number):
     bruv.mark_as_read(number)
     bottle.response.status = 204
 
+@bottle.route('/queries')
+def queries():
+    queries = bruv.conf['queries']
+    queries_string = json.dumps(queries, default=json_bruv_defaults)
+    return queries_string
+
 bottle.run(host='localhost', port=8080)
