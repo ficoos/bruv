@@ -67,7 +67,7 @@ table tr:nth-child(even) {
 <br/>
  -- Flags: [N]ew, [U]pdated Patch Set, New [C]omments, Relates to a [B]ug, Blue-[P]rint 
 <br/><br/>
-Total: {{changes.length}} reviews
+Total: {{ change_count }} reviews
 </div>
 
 <script>
@@ -91,9 +91,11 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
     $scope.markAsRead = function(number) {
         $http.get("read/" + number);
         delete $scope.changes[number];
+        $scope.change_count = Object.keys($scope.changes).length;
     };
     // Refresh view
     $scope.isLoading = 0;
+    $scope.change_count = 0;
     $scope.changes = {};
     $scope.availableQueries = []
     $scope.progressBar = $ngProgressFactory.createInstance();
@@ -113,6 +115,7 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                     angular.forEach(response.data, function(change) {
                         $scope.changes[change.number] = change;
                     });
+                    $scope.change_count = Object.keys($scope.changes).length;
                     $scope.isLoading = $scope.isLoading - 1;
                     if ($scope.isLoading == 0) {
                         $scope.progressBar.complete();
@@ -127,18 +130,18 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
             $scope.availableQueries.push({
                     name: key,
                     description: value,
-		    ticked: false
+                    ticked: false
             });
         });
-	$http.get("default_queries").then(function(response) {
-	    defaults = response.data;
-	    angular.forEach($scope.availableQueries, function(query) {
-		if (defaults.includes(query.name)) {
-			query.ticked = true;
-		}
-	    });
-	    $scope.refresh();
-	});
+        $http.get("default_queries").then(function(response) {
+            defaults = response.data;
+            angular.forEach($scope.availableQueries, function(query) {
+                if (defaults.includes(query.name)) {
+                        query.ticked = true;
+                }
+            });
+            $scope.refresh();
+        });
     });
     // Color selection
     $scope.setSelected = function(number) {
