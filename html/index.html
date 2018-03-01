@@ -53,7 +53,7 @@ table tr:nth-child(even) {
 </tr>
 <tr ng-repeat="(number, change) in changes | orderBy:orderField:reversed" ng-class="{'selected': change.number == selectedNumber }" ng-click="setSelected(change.number)">
 <td>{{ change.number }}</td>
-<td>{{ change.flags }}</td>
+<td>{{ flags(change) }}</td>
 <td>{{ change.subject }}</td>
 <td>{{ change.project }}</td>
 <td>{{ change.owner.name }}</td>
@@ -124,6 +124,26 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
             }
         });
     };
+    $scope.flags = function(change) {
+        flags = "";
+        if (change.change_since_last_comment) {
+            if (change.last_checked_patch_set == -1) {
+                flags += "N";
+            } else {
+                flags += "U";
+	    }
+        } else {
+            flags += "C";
+	}
+        if (change.related_bugs.length > 0) {
+            flags += "B";
+	}
+        if (change.is_blueprint) {
+            flags += "P";
+	}
+        return flags;
+    }
+
     // Select query (get queries)
     $http.get("queries").then(function(response) {
         angular.forEach(response.data, function(value, key) {
