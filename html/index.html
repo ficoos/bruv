@@ -59,13 +59,12 @@ table tr:nth-child(even) {
 <td>{{ change.owner.name }}</td>
 <td><a href="{{change.diff_url}}">{{change.diff_url}}</a></td>
 <td>+{{change.currentPatchSet.sizeInsertions}} {{change.currentPatchSet.sizeDeletions}}</td>
-<!-- td><a href="/read/{{change.number}}">R</a></td -->
 <td ng-click="markAsRead(change.number)">R</td>
-<td>{{change.bugs}}</td></tr>
+<td><div ng-repeat="bug in bugs(change)"><a href="https://launchpad.net/bugs/{{bug}}">#{{bug}}</a></div></td></tr>
 </tr>
 </table>
 <br/>
- -- Flags: [N]ew, [U]pdated Patch Set, New [C]omments, Relates to a [B]ug, Blue-[P]rint 
+ -- Flags: [N]ew, [U]pdated Patch Set, New [C]omments, Relates to a [B]ug, Blue-[P]rint
 <br/><br/>
 Total: {{ change_count }} reviews
 </div>
@@ -131,19 +130,28 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                 flags += "N";
             } else {
                 flags += "U";
-	    }
+            }
         } else {
             flags += "C";
-	}
+        }
         if (change.related_bugs.length > 0) {
             flags += "B";
-	}
+        }
         if (change.is_blueprint) {
             flags += "P";
-	}
+        }
         return flags;
     }
-
+    $scope.bugs = function(change) {
+        result = [];
+        angular.forEach(change.related_bugs, function(bug) {
+            if (bug.charAt(0) === "#") {
+                 bug = bug.substr(1);
+            }
+            result.push(bug);
+        });
+        return result;
+    }
     // Select query (get queries)
     $http.get("queries").then(function(response) {
         angular.forEach(response.data, function(value, key) {
