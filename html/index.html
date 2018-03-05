@@ -94,6 +94,18 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
     };
     // Refresh view
     $scope.isLoading = 0;
+    $scope.incLoading = function() {
+        $scope.isLoading = $scope.isLoading + 1;
+        if ($scope.isLoading == 1) {
+                $scope.progressBar.start();
+        }
+    }
+    $scope.decLoading = function() {
+        $scope.isLoading = $scope.isLoading - 1;
+        if ($scope.isLoading == 0) {
+            $scope.progressBar.complete();
+        }
+    }
     $scope.change_count = 0;
     $scope.changes = {};
     $scope.availableQueries = []
@@ -102,11 +114,9 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
         $scope.isFirst = true;
         angular.forEach($scope.availableQueries, function( value, key ) {
             if (value.ticked) {
-                $scope.isLoading = $scope.isLoading + 1;
-                if ($scope.isLoading == 1) {
-                        $scope.progressBar.start();
-                }
+                $scope.incLoading();
                 $http.get("list/" + value.name).then(function(response) {
+                    // Success
                     if ($scope.isFirst) {
                         $scope.isFirst = false;
                         $scope.changes = {};
@@ -115,10 +125,10 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                         $scope.changes[change.number] = change;
                     });
                     $scope.change_count = Object.keys($scope.changes).length;
-                    $scope.isLoading = $scope.isLoading - 1;
-                    if ($scope.isLoading == 0) {
-                        $scope.progressBar.complete();
-                    }
+                    $scope.decLoading();
+                }, function(response) {
+                    // Failure
+                    $scope.decLoading();
                 });
             }
         });
