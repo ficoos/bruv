@@ -34,6 +34,10 @@ def index(cssfile):
 def index():
     return bottle.static_file('html/index.html', root='.')
 
+@bottle.route('/favicon.ico')
+def favicon():
+    return bottle.static_file('images/gerrit.png', root='.')
+
 # Taken from the json documentation
 def json_bruv_defaults(o):
    try:
