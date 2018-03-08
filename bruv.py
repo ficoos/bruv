@@ -96,6 +96,8 @@ def get_data_store():
     return DBMDataStore(db_path)
 
 def get_private_key():
+    if not pkey_path:
+        return None
     agent = paramiko.agent.Agent()
     keys_by_path = {key.get_name(): key for key in agent.get_keys()}
     if pkey_path in keys_by_path:
