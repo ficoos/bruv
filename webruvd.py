@@ -11,11 +11,13 @@ ALLOWED_JS_FILES = {
     'angular.min.js',
     'isteven-multi-select.js',
     'ngprogress.min.js',
+    'angular-toastr.tpls.min.js',
 }
 
 ALLOWED_CSS_FILES = {
     'isteven-multi-select.css',
     'ngProgress.css',
+    'angular-toastr.min.css',
 }
 
 @bottle.route('/js/<jsfile>')

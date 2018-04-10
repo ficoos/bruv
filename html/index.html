@@ -8,6 +8,8 @@
 <script src="js/isteven-multi-select.js"></script>
 <script src="js/ngprogress.min.js"></script>
 <link rel="stylesheet" href="css/ngProgress.css">
+<link rel="stylesheet" href="css/angular-toastr.min.css">
+<script src="js/angular-toastr.tpls.min.js"></script>
 <style>
 table, th , td {
   border: 1px solid grey;
@@ -71,8 +73,8 @@ Total: {{ change_count }} reviews
 </div>
 
 <script>
-var app = angular.module('bruv', ["isteven-multi-select", "ngProgress"]);
-app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactory", function($scope, $document, $http, $ngProgressFactory) {
+var app = angular.module('bruv', ["isteven-multi-select", "ngProgress", "toastr"]);
+app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactory", 'toastr', function($scope, $document, $http, $ngProgressFactory, $toastr) {
     // Sorting
     $scope.reversed = true
     $scope.changeOrderTo = function(newOrderField) {
@@ -118,6 +120,7 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                 $scope.incLoading();
                 $http.get("list/" + value.name).then(function(response) {
                     // Success
+		    $toastr.success(value.name, "Fetch succeeded");
                     if ($scope.isFirst) {
                         $scope.isFirst = false;
                         $scope.changes = {};
@@ -129,6 +132,7 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                     $scope.decLoading();
                 }, function(response) {
                     // Failure
+		    $toastr.error(value.name, "Fetch failed");
                     $scope.decLoading();
                 });
             }
@@ -192,6 +196,15 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
         }
     });
 }]);
+
+app.config(function(toastrConfig) {
+  angular.extend(toastrConfig, {
+    closeButton: true,
+    extendedTimeOut: 1000,
+    tapToDismiss: true,
+    timeOut: 1000,
+  });
+});
 </script>
 
 </body>
