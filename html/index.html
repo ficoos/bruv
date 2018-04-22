@@ -54,7 +54,7 @@ table tr:nth-child(even) {
 <th/>
 <th ng-click="changeOrderTo('bugs')">Bugs</th>
 </tr>
-<tr ng-repeat="(number, change) in changes | orderBy:orderField:reversed" ng-class="{'selected': change.number == selectedNumber }" ng-click="setSelected(change.number)">
+<tr ng-repeat="change in changes_array | orderBy:orderField:reversed" ng-class="{'selected': change.number == selectedNumber }" ng-click="setSelected(change.number)">
 <td>{{ change.number }}</td>
 <td>{{ flags(change) }}</td>
 <td>{{ change.subject }}</td>
@@ -77,10 +77,11 @@ var app = angular.module('bruv', ["isteven-multi-select", "ngProgress", "toastr"
 app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactory", 'toastr', function($scope, $document, $http, $ngProgressFactory, $toastr) {
     // Sorting
     $scope.reversed = true
+    $scope.orderField = 'lastUpdated';
     $scope.changeOrderTo = function(newOrderField) {
         if ($scope.orderField == newOrderField) {
             if ($scope.reversed) {
-                $scope.orderField = null
+                $scope.orderField = 'lastUpdated'
             } else {
                 $scope.reversed = true
             }
@@ -128,7 +129,8 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                     angular.forEach(response.data, function(change) {
                         $scope.changes[change.number] = change;
                     });
-                    $scope.change_count = Object.keys($scope.changes).length;
+                    $scope.changes_array = Object.values($scope.changes);
+                    $scope.change_count = $scope.changes_array.length;
                     $scope.decLoading();
                 }, function(response) {
                     // Failure
