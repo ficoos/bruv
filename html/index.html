@@ -94,7 +94,8 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
     $scope.markAsRead = function(number) {
         $http.get("read/" + number);
         delete $scope.changes[number];
-        $scope.change_count = Object.keys($scope.changes).length;
+        $scope.changes_array = Object.values($scope.changes);
+        $scope.change_count = $scope.changes_array.length;
     };
     // Refresh view
     $scope.isLoading = 0;
