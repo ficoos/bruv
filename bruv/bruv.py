@@ -119,9 +119,9 @@ def find_last_comment_by(comments, username):
 
 
 def remove_jenkins_comments(change):
-    change["comments"] = filter(
+    change["comments"] = list(filter(
         lambda comment: comment["reviewer"].get("username") != "jenkins",
-        change["comments"])
+        change["comments"]))
     return change
 
 def extract_headers(change):

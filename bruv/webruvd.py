@@ -4,7 +4,13 @@ import collections
 import json
 
 import bottle
-import bruv
+import pkg_resources
+
+try:
+    from bruv import bruv
+except ImportError:
+    #  Possibly, we are not installed
+    import bruv
 
 
 ALLOWED_JS_FILES = {
@@ -20,25 +26,36 @@ ALLOWED_CSS_FILES = {
     'angular-toastr.min.css',
 }
 
+def _get_root(path):
+    try:
+        return pkg_resources.resource_filename(
+            pkg_resources.Requirement('bruv'), path)
+    except pkg_resources.DistributionNotFound:
+        return '../{}/'.format(path)
+
 @bottle.route('/js/<jsfile>')
 def index(jsfile):
     if jsfile not in ALLOWED_JS_FILES:
         raise bottle.HTTPError(status=404)
-    return bottle.static_file('js/' + jsfile, root='.')
+    root = _get_root('js')
+    return bottle.static_file(jsfile, root=root)
 
 @bottle.route('/css/<cssfile>')
 def index(cssfile):
     if cssfile not in ALLOWED_CSS_FILES:
         raise bottle.HTTPError(status=404)
-    return bottle.static_file('css/' + cssfile, root='.')
+    root = _get_root('css')
+    return bottle.static_file(cssfile, root=root)
 
 @bottle.route('/')
 def index():
-    return bottle.static_file('html/index.html', root='.')
+    root = _get_root('html')
+    return bottle.static_file('index.html', root=root)
 
 @bottle.route('/favicon.ico')
 def favicon():
-    return bottle.static_file('images/gerrit.png', root='.')
+    root = _get_root('images')
+    return bottle.static_file('gerrit.png', root=root)
 
 # Taken from the json documentation
 def json_bruv_defaults(o):
@@ -82,4 +99,8 @@ def queries():
     defaults_json = json.dumps(defaults, default=json_bruv_defaults)
     return defaults_json
 
-bottle.run(host='localhost', port=8080)
+def main():
+    bottle.run(host='0.0.0.0', port=8080)
+
+if __name__ == '__main__':
+    main()
