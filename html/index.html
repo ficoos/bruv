@@ -63,7 +63,7 @@ table tr:nth-child(even) {
 <td><a href="{{change.diff_url}}">{{change.diff_url}}</a></td>
 <td>+{{change.currentPatchSet.sizeInsertions}} {{change.currentPatchSet.sizeDeletions}}</td>
 <td ng-click="markAsRead(change.number)">R</td>
-<td><div ng-repeat="bug in bugs(change)"><a href="https://launchpad.net/bugs/{{bug}}">#{{bug}}</a></div></td></tr>
+<td><div ng-repeat="bug in bugs(change)"><a href="{{change.bug_base_url}}/{{bug}}">#{{bug}}</a></div></td></tr>
 </tr>
 </table>
 <br/>

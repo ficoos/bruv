@@ -62,6 +62,7 @@ host = conf.get("host", "review.openstack.org")
 port = conf.get("port", 29418)
 query = conf.get("query", "")
 db_path = str(conf.get("db_file", "bruv.db"))
+bug_base_urls = conf.get("bug_base_urls", {})
 
 PATCH_SET_INFO_RE = re.compile(r"^(?:Patch Set|Uploaded patch set) ([\d]+)")
 COMMIT_HEADER_RE = re.compile(r"\n(?P<key>[^:\n]+):\s*(?P<value>[^\n]+)",
@@ -132,7 +133,8 @@ def extract_headers(change):
 
 
 def does_relate_to_bug(change):
-    BUG_REALTED_HEADERS = {'Closes-Bug', 'Partial-Bug', 'Related-Bug'}
+    BUG_REALTED_HEADERS = {'Closes-Bug', 'Partial-Bug', 'Related-Bug',
+                           'Related', 'Closes'}
     change['related_bugs'] = set()
     for key, value in change['headers']:
         if key in BUG_REALTED_HEADERS:
@@ -155,6 +157,12 @@ def is_spec(change):
                 is_blueprint = True
 
     change['is_blueprint'] = is_blueprint
+    return change
+
+
+def add_bug_base_url(change):
+    change['bug_base_url'] = bug_base_urls.get(change['project'],
+                                               'https://launchpad.net/bugs')
     return change
 
 
@@ -259,6 +267,7 @@ _DEFAULT_FLOW = (FlowBuilder()
     .add_mapper(extract_headers)
     .add_mapper(does_relate_to_bug)
     .add_mapper(is_spec)
+    .add_mapper(add_bug_base_url)
     .add_filter(has_changed_since_comment)
     .add_filter(unread)
     .build())
