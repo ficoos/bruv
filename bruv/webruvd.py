@@ -18,6 +18,8 @@ ALLOWED_JS_FILES = {
     'isteven-multi-select.js',
     'ngprogress.min.js',
     'angular-toastr.tpls.min.js',
+    'd3-array.v2.min.js',
+    'd3.v4.js',
 }
 
 ALLOWED_CSS_FILES = {

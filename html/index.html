@@ -10,6 +10,8 @@
 <link rel="stylesheet" href="css/ngProgress.css">
 <link rel="stylesheet" href="css/angular-toastr.min.css">
 <script src="js/angular-toastr.tpls.min.js"></script>
+<script src="js/d3.v4.js"></script>
+<script src="js/d3-array.v2.min.js"></script>
 <style>
 table, th , td {
   border: 1px solid grey;
@@ -71,6 +73,7 @@ table tr:nth-child(even) {
 <br/><br/>
 Total: {{ change_count }} reviews
 </div>
+<div id="users-distribution"></div>
 
 <script>
 var app = angular.module('bruv', ["isteven-multi-select", "ngProgress", "toastr"]);
@@ -96,6 +99,7 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
         delete $scope.changes[number];
         $scope.changes_array = Object.values($scope.changes);
         $scope.change_count = $scope.changes_array.length;
+        $scope.updateUsersDistGraph();
     };
     // Refresh view
     $scope.isLoading = 0;
@@ -133,6 +137,7 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                     $scope.changes_array = Object.values($scope.changes);
                     $scope.change_count = $scope.changes_array.length;
                     $scope.decLoading();
+		    $scope.updateUsersDistGraph();
                 }, function(response) {
                     // Failure
 		    $toastr.error(value.name, "Fetch failed");
@@ -192,6 +197,52 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
     // Color selection
     $scope.setSelected = function(number) {
         $scope.selectedNumber = number;
+    };
+    // Update users distribution chart
+    var users_dist_margin = {top: 30, right: 30, bottom: 70, left: 60},
+        users_dist_width = 460 - users_dist_margin.left - users_dist_margin.right,
+        users_dist_height = 400 - users_dist_margin.top - users_dist_margin.bottom;
+
+    var usersDistSvg = d3.select("#users-distribution")
+                .append("svg")
+                .attr("width", users_dist_width + users_dist_margin.left + users_dist_margin.right)
+                .attr("height", users_dist_height + users_dist_margin.top + users_dist_margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + users_dist_margin.left + "," + users_dist_margin.top + ")");
+
+    $scope.updateUsersDistGraph = function() {
+        var data = d3.rollup($scope.changes_array, d => d.length, d => d.owner.name)
+
+        usersDistSvg.selectAll("*").remove();
+        var x = d3.scaleBand()
+                .range([ 0, users_dist_width ])
+                .domain(Array.from(data.keys()))
+                .padding(0.2);
+        usersDistSvg.append("g")
+                .attr("transform", "translate(0," + users_dist_height + ")")
+                .call(d3.axisBottom(x))
+                .selectAll("text")
+                .attr("transform", "translate(-10,0)rotate(-45)")
+                .style("text-anchor", "end");
+
+        // Add Y axis
+        var y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d[1])])
+                .range([ users_dist_height, 0]);
+        usersDistSvg.append("g")
+                .call(d3.axisLeft(y));
+
+        // Bars
+        usersDistSvg.selectAll("mybar")
+                .data(Array.from(data.entries()))
+                .enter()
+                .append("rect")
+                .attr("x", function(d) { return x(d[0]); })
+                .attr("y", function(d) { return y(d[1]); })
+                .attr("width", x.bandwidth())
+                .attr("height", function(d) { return users_dist_height - y(d[1]); })
+                .attr("fill", "#69b3a2");
+
     };
     $document.bind("keypress", function(event) {
         if (event.which == 114) {
