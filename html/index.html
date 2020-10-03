@@ -73,7 +73,7 @@ table tr:nth-child(even) {
 <br/><br/>
 Total: {{ change_count }} reviews
 </div>
-<div id="users-distribution"></div>
+<div id="graphs"></div>
 
 <script>
 var app = angular.module('bruv', ["isteven-multi-select", "ngProgress", "toastr"]);
@@ -99,7 +99,7 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
         delete $scope.changes[number];
         $scope.changes_array = Object.values($scope.changes);
         $scope.change_count = $scope.changes_array.length;
-        $scope.updateUsersDistGraph();
+        $scope.updateGraphs();
     };
     // Refresh view
     $scope.isLoading = 0;
@@ -137,7 +137,7 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
                     $scope.changes_array = Object.values($scope.changes);
                     $scope.change_count = $scope.changes_array.length;
                     $scope.decLoading();
-		    $scope.updateUsersDistGraph();
+		    $scope.updateGraphs();
                 }, function(response) {
                     // Failure
 		    $toastr.error(value.name, "Fetch failed");
@@ -203,22 +203,42 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
         users_dist_width = 460 - users_dist_margin.left - users_dist_margin.right,
         users_dist_height = 400 - users_dist_margin.top - users_dist_margin.bottom;
 
-    var usersDistSvg = d3.select("#users-distribution")
+    var usersDistSvg = d3.select("#graphs")
                 .append("svg")
                 .attr("width", users_dist_width + users_dist_margin.left + users_dist_margin.right)
                 .attr("height", users_dist_height + users_dist_margin.top + users_dist_margin.bottom)
                 .append("g")
                 .attr("transform", "translate(" + users_dist_margin.left + "," + users_dist_margin.top + ")");
 
+    var flagDistSvg = d3.select("#graphs")
+                .append("svg")
+                .attr("width", users_dist_width + users_dist_margin.left + users_dist_margin.right)
+                .attr("height", users_dist_height + users_dist_margin.top + users_dist_margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + users_dist_margin.left + "," + users_dist_margin.top + ")");
+
+    $scope.updateGraphs = function() {
+        $scope.updateUsersDistGraph();
+        $scope.updateFlagDistGraph();
+    },
+
     $scope.updateUsersDistGraph = function() {
         var data = d3.rollup($scope.changes_array, d => d.length, d => d.owner.name)
+	$scope.updateGraph(usersDistSvg, data);
+    },
 
-        usersDistSvg.selectAll("*").remove();
+    $scope.updateFlagDistGraph = function() {
+        var data = d3.rollup($scope.changes_array, d => d.length, d => $scope.flags(d)[0])
+	$scope.updateGraph(flagDistSvg, data);
+    },
+
+    $scope.updateGraph = function(svg, data) {
+        svg.selectAll("*").remove();
         var x = d3.scaleBand()
                 .range([ 0, users_dist_width ])
                 .domain(Array.from(data.keys()))
                 .padding(0.2);
-        usersDistSvg.append("g")
+        svg.append("g")
                 .attr("transform", "translate(0," + users_dist_height + ")")
                 .call(d3.axisBottom(x))
                 .selectAll("text")
@@ -229,11 +249,11 @@ app.controller('changesCtrl', ['$scope', '$document', '$http', "ngProgressFactor
         var y = d3.scaleLinear()
                 .domain([0, d3.max(data, d => d[1])])
                 .range([ users_dist_height, 0]);
-        usersDistSvg.append("g")
+        svg.append("g")
                 .call(d3.axisLeft(y));
 
         // Bars
-        usersDistSvg.selectAll("mybar")
+        svg.selectAll("mybar")
                 .data(Array.from(data.entries()))
                 .enter()
                 .append("rect")
